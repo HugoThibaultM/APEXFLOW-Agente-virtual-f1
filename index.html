@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>ApexFlow - Live Telemetry</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style> body { background-color: #0f172a; color: white; } </style>
+</head>
+<body class="p-8">
+    <div class="max-w-6xl mx-auto">
+        <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+            <h1 class="text-3xl font-bold text-blue-400">🏎️ ApexFlow <span class="text-white">Cloud</span></h1>
+            <div class="flex gap-4">
+                <div class="bg-slate-800 p-4 rounded-lg text-center min-w-[120px]">
+                    <p class="text-slate-400 text-sm">VELOCIDAD</p>
+                    <p class="text-3xl font-mono text-green-400"><span id="speed">0</span> <span class="text-sm">km/h</span></p>
+                </div>
+                <div class="bg-slate-800 p-4 rounded-lg text-center min-w-[120px]">
+                    <p class="text-slate-400 text-sm">MARCHA</p>
+                    <p class="text-3xl font-mono text-orange-400" id="gear">-</p>
+                </div>
+            </div>
+        </header>
+        
+        <div class="bg-slate-800 p-6 rounded-xl shadow-2xl">
+            <canvas id="telemetryChart" height="100"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('telemetryChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { label: 'Velocidad (km/h)', borderColor: '#4ade80', data: [], tension: 0.2, yAxisID: 'y' },
+                    { label: 'Freno (0-1)', borderColor: '#f87171', data: [], tension: 0.2, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                animation: false,
+                scales: {
+                    y: { min: 0, max: 350, position: 'left' },
+                    y1: { min: 0, max: 1.2, position: 'right', grid: { drawOnChartArea: false } }
+                }
+            }
+        });
+
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const wsUrl = wsProtocol + "//" + window.location.host + "/ws/viewer";
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            
+            document.getElementById('speed').innerText = data.speed;
+            document.getElementById('gear').innerText = data.gear;
+
+            if (chart.data.labels.length > 100) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift();
+                chart.data.datasets[1].data.shift();
+            }
+            chart.data.labels.push('');
+            chart.data.datasets[0].data.push(data.speed);
+            chart.data.datasets[1].data.push(data.brake);
+            chart.update();
+        };
+
+        ws.onclose = function(e) {
+            console.error("Desconectado de la Nube. Código: ", e.code);
+            document.getElementById('speed').innerText = "ERR";
+        };
+    </script>
+</body>
+</html>
