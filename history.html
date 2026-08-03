@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ApexFlow - Historial de Sesiones</title>
+    <title>ApexFlow - Selector de Vueltas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style> body { background-color: #0f172a; color: white; } </style>
@@ -10,17 +10,20 @@
 <body class="p-8">
     <div class="max-w-6xl mx-auto">
         <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-            <h1 class="text-3xl font-bold text-blue-400">🏎️ ApexFlow <span class="text-slate-400">Analysis</span></h1>
+            <div>
+                <h1 class="text-3xl font-bold text-blue-400">🏎️ ApexFlow <span class="text-slate-400">Analysis</span></h1>
+                <p id="infoText" class="text-sm text-slate-400 mt-1">Selecciona una sesión</p>
+            </div>
             
-            <!-- Selector de Sesiones -->
-            <div class="flex gap-4 items-center">
-                <label for="sessionSelect" class="text-slate-400 text-sm">Sesión:</label>
-                <select id="sessionSelect" class="bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none">
+            <!-- Controles de Vueltas -->
+            <div class="flex gap-3 items-center">
+                <select id="sessionSelect" onchange="onSessionChange()" class="bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none text-sm">
                     <option value="">Cargando sesiones...</option>
                 </select>
-                <button onclick="loadSession()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded transition-colors font-bold">
-                    Cargar Telemetría
-                </button>
+
+                <select id="lapSelect" onchange="loadSelectedLap()" class="bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none text-sm">
+                    <option value="">Selecciona sesión primero</option>
+                </select>
             </div>
         </header>
         
@@ -30,59 +33,74 @@
     </div>
 
     <script>
-        let historyChart; // Variable global para el gráfico
+        let historyChart;
+        let currentSessionId = "";
 
-        // 1. Al cargar la página, pedimos a la API la lista de sesiones
+        // 1. Cargar lista de sesiones al iniciar
         window.onload = async function() {
-            try {
-                const response = await fetch('/api/sessions');
-                const data = await response.json();
-                const select = document.getElementById('sessionSelect');
-                
-                select.innerHTML = ''; // Limpiamos el texto de carga
-                
-                if (data.sessions.length === 0) {
-                    select.innerHTML = '<option value="">No hay datos guardados</option>';
-                    return;
-                }
-
-                // Llenamos el desplegable
-                data.sessions.forEach(session => {
-                    const option = document.createElement('option');
-                    option.value = session;
-                    // Hacemos el ID más legible para el usuario
-                    const date = new Date(parseInt(session.split('_')[1]) * 1000);
-                    option.text = `Sesión: ${date.toLocaleString()}`;
-                    select.appendChild(option);
-                });
-            } catch (error) {
-                console.error("Error cargando sesiones:", error);
-            }
+            const res = await fetch('/api/sessions');
+            const data = await res.json();
+            const select = document.getElementById('sessionSelect');
+            select.innerHTML = '<option value="">-- Elige una Sesión --</option>';
+            
+            data.sessions.forEach(session => {
+                const opt = document.createElement('option');
+                opt.value = session;
+                const date = new Date(parseInt(session.split('_')[1]) * 1000);
+                opt.text = `Sesión del ${date.toLocaleTimeString()}`;
+                select.appendChild(opt);
+            });
         };
 
-        // 2. Función para cargar los datos de la sesión seleccionada
-        async function loadSession() {
-            const sessionId = document.getElementById('sessionSelect').value;
-            if (!sessionId) return;
+        // 2. Al cambiar de sesión, cargamos sus vueltas disponibles
+        async function onSessionChange() {
+            currentSessionId = document.getElementById('sessionSelect').value;
+            if (!currentSessionId) return;
 
-            try {
-                const response = await fetch(`/api/telemetry/${sessionId}`);
-                const data = await response.json();
+            const res = await fetch(`/api/telemetry/${currentSessionId}/laps`);
+            const data = await res.json();
+            const lapSelect = document.getElementById('lapSelect');
+            lapSelect.innerHTML = '';
 
-                drawChart(data.labels, data.speed, data.brake);
-            } catch (error) {
-                console.error("Error cargando telemetría:", error);
+            if (data.error) {
+                lapSelect.innerHTML = '<option>Sin vueltas</option>';
+                return;
             }
+
+            // Llenamos el desplegable con todas las vueltas
+            data.laps.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item.lap;
+                
+                // Si es la mejor vuelta, la marcamos visualmente
+                if (item.lap === data.best_lap) {
+                    opt.text = `⭐ Vuelta ${item.lap} (Más rápida: ${item.duration}s)`;
+                    opt.selected = true; // Seleccionada por defecto
+                } else {
+                    opt.text = `Vuelta ${item.lap} (${item.duration}s)`;
+                }
+                lapSelect.appendChild(opt);
+            });
+
+            // Cargamos automáticamente la mejor vuelta seleccionada
+            loadSelectedLap();
         }
 
-        // 3. Dibujar o actualizar el gráfico de Chart.js
+        // 3. Cargar los datos de la vuelta elegida en el desplegable
+        async function loadSelectedLap() {
+            const lapNumber = document.getElementById('lapSelect').value;
+            if (!currentSessionId || !lapNumber) return;
+
+            const res = await fetch(`/api/telemetry/${currentSessionId}/lap/${lapNumber}`);
+            const data = await res.json();
+
+            document.getElementById('infoText').innerText = `Visualizando Vuelta #${data.lap} (Medición por Distancia)`;
+            drawChart(data.distances, data.speed, data.brake);
+        }
+
         function drawChart(labels, speedData, brakeData) {
             const ctx = document.getElementById('historyChart').getContext('2d');
-            
-            // Si ya existe un gráfico, lo destruimos para dibujar el nuevo limpio
-            if (historyChart) {
-                historyChart.destroy();
-            }
+            if (historyChart) historyChart.destroy();
 
             historyChart = new Chart(ctx, {
                 type: 'line',
@@ -95,11 +113,11 @@
                 },
                 options: {
                     responsive: true,
-                    interaction: { mode: 'index', intersect: false }, // Permite ver los datos al pasar el ratón
+                    interaction: { mode: 'index', intersect: false },
                     scales: {
                         y: { min: 0, max: 350, position: 'left' },
                         y1: { min: 0, max: 1.2, position: 'right', grid: { drawOnChartArea: false } },
-                        x: { ticks: { maxTicksLimit: 20 } } // No saturar el eje X con miles de segundos
+                        x: { ticks: { maxTicksLimit: 15 } }
                     }
                 }
             });
