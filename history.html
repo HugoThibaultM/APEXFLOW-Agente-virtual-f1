@@ -190,6 +190,17 @@
 
             document.getElementById('infoText').innerText = `MODO ANÁLISIS: VUELTA #${lap1} VS VUELTA #${lap2}`;
             drawComparisonChart(data.lap1, data.lap2);
+
+            // NUEVO: Actualizar el Coach Inteligente en la Interfaz
+            const coachCard = document.querySelector('aside > div:nth-child(2)');
+            if (data.coach) {
+                coachCard.classList.remove('opacity-50'); // Le quitamos la transparencia
+                coachCard.innerHTML = `
+                    <span class="text-4xl mb-2">${data.coach.emoji}</span>
+                    <h3 class="text-sm font-bold text-gray-200 uppercase tracking-wider mb-2">Ingeniero de Pista</h3>
+                    <p class="text-sm text-blue-400 font-semibold leading-relaxed border-t border-gray-800 pt-3">${data.coach.message}</p>
+                `;
+            }
         }
 
         // 4. Dibujar Gráfica Premium con Chart.js

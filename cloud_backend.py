@@ -142,10 +142,9 @@ def get_specific_lap_telemetry(session_id: str, lap_number: int):
         "brake": brake_data
     }
 
-# --- NUEVA API: COMPARATIVA DE DOS VUELTAS (GHOST) ---
+# --- API: COMPARATIVA DE DOS VUELTAS Y COACH INTELIGENTE ---
 @app.get("/api/telemetry/{session_id}/compare")
 def compare_laps(session_id: str, lap1: int, lap2: int):
-    """Devuelve los datos de dos vueltas diferentes alineadas por distancia para comparar"""
     conn = sqlite3.connect("apexflow.db")
     cursor = conn.cursor()
     
@@ -162,18 +161,63 @@ def compare_laps(session_id: str, lap1: int, lap2: int):
     rows2 = get_lap_data(lap2)
     conn.close()
 
+    # --- LÓGICA DEL COACH INTELIGENTE ---
+    coach_message = "Ambas vueltas son muy similares. ¡Sigue así, ritmo constante!"
+    coach_emoji = "✅"
+    
+    if rows1 and rows2 and lap1 != lap2:
+        max_diff = 0
+        dist_at_max_diff = 0
+        issue_type = "" # "early_brake" o "slow_apex"
+        
+        # Comparamos metro a metro (aproximado)
+        # Convertimos la vuelta de referencia en un diccionario para buscar rápido por metro
+        ref_dict = {int(r[0]): r[1] for r in rows2}
+        
+        for r1 in rows1:
+            dist_m = int(r1[0])
+            speed_user = r1[1]
+            
+            # Buscamos si el Pro tiene datos en ese mismo metro (+- 2 metros)
+            speed_pro = ref_dict.get(dist_m) or ref_dict.get(dist_m - 1) or ref_dict.get(dist_m + 1)
+            
+            if speed_pro:
+                diff = speed_pro - speed_user
+                # Si el Pro va mucho más rápido (pierdes tiempo) y es la mayor diferencia vista
+                if diff > 15 and diff > max_diff:
+                    max_diff = diff
+                    dist_at_max_diff = dist_m
+                    
+                    # Heurística básica:
+                    # Si el Pro va más rápido y tú vas a menos de 100km/h, suele ser el vértice de una curva lenta.
+                    if speed_user < 120:
+                        issue_type = "slow_apex"
+                    else:
+                        issue_type = "early_brake"
+
+        # Generamos el mensaje en base a lo que encontró el algoritmo
+        if max_diff > 0:
+            if issue_type == "slow_apex":
+                coach_emoji = "🐢"
+                coach_message = f"Pierdes hasta {int(max_diff)} km/h en el paso por curva sobre el metro {dist_at_max_diff}. Intenta no frenar tanto en el vértice y deja correr el coche."
+            elif issue_type == "early_brake":
+                coach_emoji = "⚠️"
+                coach_message = f"Frenas demasiado pronto en la zona del metro {dist_at_max_diff}. El piloto de referencia te saca {int(max_diff)} km/h en ese punto. ¡Apura la frenada!"
+
     return {
         "lap1": {
             "number": lap1,
             "distances": [f"{int(r[0])}m" for r in rows1],
-            "speed": [r[1] for r in rows1],
-            "brake": [r[2] for r in rows1]
+            "speed": [r[1] for r in rows1]
         },
         "lap2": {
             "number": lap2,
             "distances": [f"{int(r[0])}m" for r in rows2],
-            "speed": [r[1] for r in rows2],
-            "brake": [r[2] for r in rows2]
+            "speed": [r[1] for r in rows2]
+        },
+        "coach": {
+            "emoji": coach_emoji,
+            "message": coach_message
         }
     }
 
