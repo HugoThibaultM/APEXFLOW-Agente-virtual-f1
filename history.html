@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ApexFlow - Selector de Vueltas</title>
+    <title>ApexFlow - Comparativa de Vueltas</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style> body { background-color: #0f172a; color: white; } </style>
@@ -11,19 +11,29 @@
     <div class="max-w-6xl mx-auto">
         <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
             <div>
-                <h1 class="text-3xl font-bold text-blue-400">🏎️ ApexFlow <span class="text-slate-400">Analysis</span></h1>
-                <p id="infoText" class="text-sm text-slate-400 mt-1">Selecciona una sesión</p>
+                <h1 class="text-3xl font-bold text-blue-400">🏎️ ApexFlow <span class="text-slate-400">Comparison</span></h1>
+                <p id="infoText" class="text-sm text-slate-400 mt-1">Selecciona una sesión para comparar</p>
             </div>
             
-            <!-- Controles de Vueltas -->
+            <!-- Controles de Comparativa -->
             <div class="flex gap-3 items-center">
                 <select id="sessionSelect" onchange="onSessionChange()" class="bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none text-sm">
-                    <option value="">Cargando sesiones...</option>
+                    <option value="">-- Sesión --</option>
                 </select>
 
-                <select id="lapSelect" onchange="loadSelectedLap()" class="bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none text-sm">
-                    <option value="">Selecciona sesión primero</option>
-                </select>
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-slate-400">Tu Vuelta:</span>
+                    <select id="lap1Select" onchange="loadComparison()" class="bg-slate-800 text-green-400 font-bold p-2 rounded border border-slate-600 outline-none text-sm">
+                        <option value="">-</option>
+                    </select>
+                </div>
+
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-slate-400">Referencia (Pro):</span>
+                    <select id="lap2Select" onchange="loadComparison()" class="bg-slate-800 text-orange-400 font-bold p-2 rounded border border-slate-600 outline-none text-sm">
+                        <option value="">-</option>
+                    </select>
+                </div>
             </div>
         </header>
         
@@ -36,7 +46,6 @@
         let historyChart;
         let currentSessionId = "";
 
-        // 1. Cargar lista de sesiones al iniciar
         window.onload = async function() {
             const res = await fetch('/api/sessions');
             const data = await res.json();
@@ -52,72 +61,69 @@
             });
         };
 
-        // 2. Al cambiar de sesión, cargamos sus vueltas disponibles
         async function onSessionChange() {
             currentSessionId = document.getElementById('sessionSelect').value;
             if (!currentSessionId) return;
 
             const res = await fetch(`/api/telemetry/${currentSessionId}/laps`);
             const data = await res.json();
-            const lapSelect = document.getElementById('lapSelect');
-            lapSelect.innerHTML = '';
+            
+            const lap1Select = document.getElementById('lap1Select');
+            const lap2Select = document.getElementById('lap2Select');
+            lap1Select.innerHTML = '';
+            lap2Select.innerHTML = '';
 
-            if (data.error) {
-                lapSelect.innerHTML = '<option>Sin vueltas</option>';
-                return;
-            }
+            if (data.error) return;
 
-            // Llenamos el desplegable con todas las vueltas
             data.laps.forEach(item => {
-                const opt = document.createElement('option');
-                opt.value = item.lap;
-                
-                // Si es la mejor vuelta, la marcamos visualmente
-                if (item.lap === data.best_lap) {
-                    opt.text = `⭐ Vuelta ${item.lap} (Más rápida: ${item.duration}s)`;
-                    opt.selected = true; // Seleccionada por defecto
-                } else {
-                    opt.text = `Vuelta ${item.lap} (${item.duration}s)`;
-                }
-                lapSelect.appendChild(opt);
+                // Llenamos el desplegable 1 (Tu vuelta - por defecto la mejor)
+                const opt1 = document.createElement('option');
+                opt1.value = item.lap;
+                opt1.text = `Vuelta ${item.lap} (${item.duration}s)`;
+                if (item.lap === data.best_lap) opt1.selected = true;
+                lap1Select.appendChild(opt1);
+
+                // Llenamos el desplegable 2 (Referencia - por defecto la misma o la primera)
+                const opt2 = document.createElement('option');
+                opt2.value = item.lap;
+                opt2.text = `Vuelta ${item.lap} (${item.duration}s)`;
+                lap2Select.appendChild(opt2);
             });
 
-            // Cargamos automáticamente la mejor vuelta seleccionada
-            loadSelectedLap();
+            loadComparison();
         }
 
-        // 3. Cargar los datos de la vuelta elegida en el desplegable
-        async function loadSelectedLap() {
-            const lapNumber = document.getElementById('lapSelect').value;
-            if (!currentSessionId || !lapNumber) return;
+        async function loadComparison() {
+            const lap1 = document.getElementById('lap1Select').value;
+            const lap2 = document.getElementById('lap2Select').value;
+            if (!currentSessionId || !lap1 || !lap2) return;
 
-            const res = await fetch(`/api/telemetry/${currentSessionId}/lap/${lapNumber}`);
+            const res = await fetch(`/api/telemetry/${currentSessionId}/compare?lap1=${lap1}&lap2=${lap2}`);
             const data = await res.json();
 
-            document.getElementById('infoText').innerText = `Visualizando Vuelta #${data.lap} (Medición por Distancia)`;
-            drawChart(data.distances, data.speed, data.brake);
+            document.getElementById('infoText').innerText = `Comparando Vuelta #${lap1} (Verde) vs Vuelta #${lap2} (Naranja)`;
+            drawComparisonChart(data.lap1, data.lap2);
         }
 
-        function drawChart(labels, speedData, brakeData) {
+        function drawComparisonChart(l1, l2) {
             const ctx = document.getElementById('historyChart').getContext('2d');
             if (historyChart) historyChart.destroy();
 
             historyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: l1.distances, // Usamos los metros de la pista como eje X común
                     datasets: [
-                        { label: 'Velocidad (km/h)', borderColor: '#4ade80', backgroundColor: 'rgba(74, 222, 128, 0.1)', fill: true, data: speedData, tension: 0.1, yAxisID: 'y', pointRadius: 0 },
-                        { label: 'Freno (0-1)', borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)', fill: true, data: brakeData, tension: 0.1, yAxisID: 'y1', pointRadius: 0 }
+                        { label: `Velocidad Vuelta ${l1.number} (km/h)`, borderColor: '#4ade80', data: l1.speed, tension: 0.1, pointRadius: 0, borderWidth: 2 },
+                        { label: `Velocidad Vuelta ${l2.number} (Pro/Ref)`, borderColor: '#fb923c', data: l2.speed, tension: 0.1, pointRadius: 0, borderWidth: 2, borderDash: [4, 4] }
                     ]
                 },
                 options: {
                     responsive: true,
                     interaction: { mode: 'index', intersect: false },
                     scales: {
-                        y: { min: 0, max: 350, position: 'left' },
-                        y1: { min: 0, max: 1.2, position: 'right', grid: { drawOnChartArea: false } },
-                        x: { ticks: { maxTicksLimit: 15 } }
+                        y: { min: 0, max: 350, title: { display: true, text: 'Velocidad (km/h)' } },
+                        x: { ticks: { maxTicksLimit: 15 }, title: { display: true, text: 'Distancia en Pista (Metros)' } }
                     }
                 }
             });

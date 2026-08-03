@@ -141,6 +141,42 @@ def get_specific_lap_telemetry(session_id: str, lap_number: int):
         "speed": speed_data,
         "brake": brake_data
     }
+
+# --- NUEVA API: COMPARATIVA DE DOS VUELTAS (GHOST) ---
+@app.get("/api/telemetry/{session_id}/compare")
+def compare_laps(session_id: str, lap1: int, lap2: int):
+    """Devuelve los datos de dos vueltas diferentes alineadas por distancia para comparar"""
+    conn = sqlite3.connect("apexflow.db")
+    cursor = conn.cursor()
+    
+    def get_lap_data(l_num):
+        cursor.execute('''
+            SELECT distance, speed, brake 
+            FROM telemetry 
+            WHERE session_id = ? AND lap = ? 
+            ORDER BY distance ASC
+        ''', (session_id, l_num))
+        return cursor.fetchall()
+
+    rows1 = get_lap_data(lap1)
+    rows2 = get_lap_data(lap2)
+    conn.close()
+
+    return {
+        "lap1": {
+            "number": lap1,
+            "distances": [f"{int(r[0])}m" for r in rows1],
+            "speed": [r[1] for r in rows1],
+            "brake": [r[2] for r in rows1]
+        },
+        "lap2": {
+            "number": lap2,
+            "distances": [f"{int(r[0])}m" for r in rows2],
+            "speed": [r[1] for r in rows2],
+            "brake": [r[2] for r in rows2]
+        }
+    }
+
 # --- 4. RUTAS WEBSOCKETS (TIEMPO REAL) ---
 
 @app.websocket("/ws/viewer")
