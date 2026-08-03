@@ -5,73 +5,175 @@
     <title>ApexFlow - Live Telemetry</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style> body { background-color: #0f172a; color: white; } </style>
+    <!-- Importamos una fuente estilo consola/carreras -->
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Rajdhani', sans-serif; 
+            background-color: #050505; /* Negro profundo */
+            color: #e2e8f0; 
+        }
+        .pedal-bg { background-color: #111827; }
+        .lcd-text { font-family: 'Courier New', Courier, monospace; letter-spacing: -2px; }
+    </style>
 </head>
-<body class="p-8">
-    <div class="max-w-6xl mx-auto">
-        <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-            <h1 class="text-3xl font-bold text-blue-400">🏎️ ApexFlow <span class="text-white">Cloud</span></h1>
-            <div class="flex gap-4">
-                <div class="bg-slate-800 p-4 rounded-lg text-center min-w-[120px]">
-                    <p class="text-slate-400 text-sm">VELOCIDAD</p>
-                    <p class="text-3xl font-mono text-green-400"><span id="speed">0</span> <span class="text-sm">km/h</span></p>
+<body class="p-6 h-screen flex flex-col">
+    
+    <!-- 1. HEADER (Logo y Estado) -->
+    <header class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
+        <h1 class="text-4xl font-bold text-white tracking-wider">APEX<span class="text-blue-600">FLOW</span> <span class="text-gray-600 text-xl">LIVE</span></h1>
+        <div id="status" class="px-4 py-1 rounded text-sm font-bold bg-red-900 text-red-300 border border-red-700 transition-colors">
+            DESCONECTADO
+        </div>
+    </header>
+
+    <!-- 2. GRID PRINCIPAL -->
+    <div class="grid grid-cols-12 gap-6 flex-grow min-h-0">
+        
+        <!-- COLUMNA IZQUIERDA: Pedales y Coche (3 de 12) -->
+        <div class="col-span-3 flex gap-6">
+            
+            <!-- Marcha y Velocidad -->
+            <div class="flex flex-col gap-6 w-1/2">
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col justify-center items-center h-1/2 shadow-2xl">
+                    <span class="text-gray-500 text-xs tracking-widest uppercase mb-1">Marcha</span>
+                    <span id="gearDisplay" class="text-7xl font-bold text-white">N</span>
                 </div>
-                <div class="bg-slate-800 p-4 rounded-lg text-center min-w-[120px]">
-                    <p class="text-slate-400 text-sm">MARCHA</p>
-                    <p class="text-3xl font-mono text-orange-400" id="gear">-</p>
+                <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex flex-col justify-center items-center h-1/2 shadow-2xl">
+                    <span class="text-gray-500 text-xs tracking-widest uppercase mb-1">Velocidad</span>
+                    <div class="flex items-baseline gap-1">
+                        <span id="speedDisplay" class="text-5xl font-bold text-blue-400 lcd-text">0</span>
+                        <span class="text-gray-600 font-bold text-sm">KM/H</span>
+                    </div>
                 </div>
             </div>
-        </header>
-        
-        <div class="bg-slate-800 p-6 rounded-xl shadow-2xl">
-            <canvas id="telemetryChart" height="100"></canvas>
+
+            <!-- Pedales -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 flex gap-4 justify-center shadow-2xl w-1/2">
+                <!-- Freno (Rojo) -->
+                <div class="flex flex-col items-center h-full w-1/2">
+                    <div class="pedal-bg rounded-lg w-full h-full relative overflow-hidden border border-gray-800 shadow-inner">
+                        <div id="brakeBar" class="absolute bottom-0 left-0 w-full bg-red-600 transition-all duration-75" style="height: 0%;"></div>
+                    </div>
+                    <span class="mt-3 text-gray-500 font-bold text-xs tracking-widest">BRK</span>
+                </div>
+                <!-- Acelerador (Verde) -->
+                <div class="flex flex-col items-center h-full w-1/2">
+                    <div class="pedal-bg rounded-lg w-full h-full relative overflow-hidden border border-gray-800 shadow-inner">
+                        <div id="throttleBar" class="absolute bottom-0 left-0 w-full bg-green-500 transition-all duration-75" style="height: 0%;"></div>
+                    </div>
+                    <span class="mt-3 text-gray-500 font-bold text-xs tracking-widest">THR</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- COLUMNA DERECHA: RPM y Gráfica (9 de 12) -->
+        <div class="col-span-9 flex flex-col gap-6">
+            
+            <!-- Barra de RPM (Horizontal) -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-2xl">
+                <div class="flex justify-between items-end mb-3">
+                    <span class="text-gray-500 text-xs tracking-widest uppercase">Revoluciones del Motor</span>
+                    <span class="text-gray-400 font-bold"><span id="rpmDisplay" class="text-2xl text-white lcd-text">0</span> RPM</span>
+                </div>
+                <div class="w-full h-6 bg-gray-950 rounded-full overflow-hidden border border-gray-800 shadow-inner">
+                    <!-- El gradiente cambia de verde a rojo según se llena -->
+                    <div id="rpmBar" class="h-full bg-gradient-to-r from-green-500 via-yellow-400 to-red-600 transition-all duration-75" style="width: 0%;"></div>
+                </div>
+            </div>
+
+            <!-- Gráfica Histórica en Vivo -->
+            <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 shadow-2xl flex-grow relative">
+                <canvas id="liveChart"></canvas>
+            </div>
         </div>
     </div>
 
+    <!-- 3. LÓGICA DE JAVASCRIPT -->
     <script>
-        const ctx = document.getElementById('telemetryChart').getContext('2d');
-        const chart = new Chart(ctx, {
+        // Inicialización de la gráfica Chart.js
+        const ctx = document.getElementById('liveChart').getContext('2d');
+        const liveChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: [],
+                labels: Array(100).fill(''), 
                 datasets: [
-                    { label: 'Velocidad (km/h)', borderColor: '#4ade80', data: [], tension: 0.2, yAxisID: 'y' },
-                    { label: 'Freno (0-1)', borderColor: '#f87171', data: [], tension: 0.2, yAxisID: 'y1' }
+                    { label: 'Velocidad', borderColor: '#3b82f6', data: Array(100).fill(0), tension: 0.2, pointRadius: 0, borderWidth: 2, yAxisID: 'y' },
+                    { label: 'Acelerador', borderColor: '#22c55e', data: Array(100).fill(0), tension: 0.2, pointRadius: 0, borderWidth: 1, yAxisID: 'y1' },
+                    { label: 'Freno', borderColor: '#ef4444', data: Array(100).fill(0), tension: 0.2, pointRadius: 0, borderWidth: 1, yAxisID: 'y1' }
                 ]
             },
             options: {
-                animation: false,
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false, // Apagamos la animación para evitar lag en tiempo real
                 scales: {
-                    y: { min: 0, max: 350, position: 'left' },
-                    y1: { min: 0, max: 1.2, position: 'right', grid: { drawOnChartArea: false } }
-                }
+                    x: { display: false },
+                    y: { min: 0, max: 350, position: 'left', grid: { color: '#1f2937' } },
+                    y1: { min: 0, max: 1.2, position: 'right', display: false }
+                },
+                plugins: { legend: { display: false } } // Ocultamos la leyenda para ahorrar espacio
             }
         });
 
-        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const wsUrl = wsProtocol + "//" + window.location.host + "/ws/viewer";
-        const ws = new WebSocket(wsUrl);
-        
-        ws.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            
-            document.getElementById('speed').innerText = data.speed;
-            document.getElementById('gear').innerText = data.gear;
+        // Conexión WebSocket
+        const ws = new WebSocket("ws://127.0.0.1:8000/ws/viewer");
+        const statusEl = document.getElementById("status");
 
-            if (chart.data.labels.length > 100) {
-                chart.data.labels.shift();
-                chart.data.datasets[0].data.shift();
-                chart.data.datasets[1].data.shift();
-            }
-            chart.data.labels.push('');
-            chart.data.datasets[0].data.push(data.speed);
-            chart.data.datasets[1].data.push(data.brake);
-            chart.update();
+        ws.onopen = () => {
+            statusEl.innerText = "ONLINE - ESPERANDO DATOS";
+            statusEl.className = "px-4 py-1 rounded text-sm font-bold bg-yellow-900 text-yellow-300 border border-yellow-700";
         };
 
-        ws.onclose = function(e) {
-            console.error("Desconectado de la Nube. Código: ", e.code);
-            document.getElementById('speed').innerText = "ERR";
+        ws.onclose = () => {
+            statusEl.innerText = "DESCONECTADO";
+            statusEl.className = "px-4 py-1 rounded text-sm font-bold bg-red-900 text-red-300 border border-red-700";
+        };
+
+        // Procesamiento de datos en tiempo real
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+
+            // 1. Cambiamos estado a verde al recibir el primer paquete
+            if (statusEl.innerText !== "RECIBIENDO TELEMETRÍA") {
+                statusEl.innerText = "RECIBIENDO TELEMETRÍA";
+                statusEl.className = "px-4 py-1 rounded text-sm font-bold bg-green-900 text-green-300 border border-green-700 shadow-[0_0_15px_rgba(34,197,94,0.4)]";
+            }
+
+            // 2. Actualizar displays numéricos
+            document.getElementById('speedDisplay').innerText = data.speed.toString().padStart(3, '0');
+            document.getElementById('rpmDisplay').innerText = data.rpm;
+            
+            // Lógica de marchas (-1 es R, 0 es N)
+            let gearText = data.gear;
+            if (data.gear === -1) gearText = 'R';
+            else if (data.gear === 0) gearText = 'N';
+            document.getElementById('gearDisplay').innerText = gearText;
+            
+            // Color de la marcha (Rojo si es N o R)
+            document.getElementById('gearDisplay').className = 
+                (gearText === 'N' || gearText === 'R') ? "text-7xl font-bold text-red-500" : "text-7xl font-bold text-white";
+
+            // 3. Actualizar barras físicas (Gauges)
+            document.getElementById('throttleBar').style.height = `${data.throttle * 100}%`;
+            document.getElementById('brakeBar').style.height = `${data.brake * 100}%`;
+            
+            // Simulamos un máximo de 10.000 RPM para la barra (Ajustable)
+            const maxRpm = 10000; 
+            const rpmPercent = Math.min((data.rpm / maxRpm) * 100, 100);
+            document.getElementById('rpmBar').style.width = `${rpmPercent}%`;
+
+            // 4. Actualizar Gráfica
+            liveChart.data.datasets[0].data.push(data.speed);
+            liveChart.data.datasets[0].data.shift();
+            
+            liveChart.data.datasets[1].data.push(data.throttle);
+            liveChart.data.datasets[1].data.shift();
+            
+            liveChart.data.datasets[2].data.push(data.brake);
+            liveChart.data.datasets[2].data.shift();
+            
+            liveChart.update();
         };
     </script>
 </body>
