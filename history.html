@@ -2,87 +2,148 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>ApexFlow - Analysis & Comparison</title>
+    <title>ApexFlow - Advanced Telemetry Analysis</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&display=swap" rel="stylesheet">
-    <style> 
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
         body { 
             font-family: 'Rajdhani', sans-serif; 
-            background-color: #050505; 
+            background-color: #030303; 
             color: #e2e8f0; 
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(37, 99, 235, 0.04) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(34, 197, 94, 0.04) 0%, transparent 50%);
         }
-        /* Estilizamos las barras de desplazamiento para que encajen en el tema oscuro */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #111827; }
-        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 10px; }
         ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+        /* Estilo para los selects oscuros */
+        select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+            background-position: right .5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+        }
     </style>
 </head>
-<body class="p-6 h-screen flex flex-col">
-    
-    <!-- HEADER -->
-    <header class="flex justify-between items-center mb-6 border-b border-gray-800 pb-4">
-        <div>
-            <h1 class="text-4xl font-bold text-white tracking-wider">APEX<span class="text-blue-600">FLOW</span> <span class="text-gray-600 text-xl">ANALYSIS</span></h1>
-            <p id="infoText" class="text-sm text-gray-500 mt-1 uppercase tracking-widest">Selecciona una sesión para comenzar</p>
-        </div>
-        
-        <!-- Controles de Comparativa -->
-        <div class="flex gap-4 items-end">
-            <div class="flex flex-col gap-1">
-                <span class="text-[10px] text-gray-500 uppercase tracking-widest">Archivo de Sesión</span>
-                <select id="sessionSelect" onchange="onSessionChange()" class="bg-gray-900 text-white p-2 rounded-lg border border-gray-700 outline-none text-sm w-48 shadow-inner focus:border-blue-500 transition-colors">
-                    <option value="">-- Sesión --</option>
-                </select>
-            </div>
+<body class="h-screen flex flex-col p-4 md:p-6 overflow-hidden">
 
-            <div class="flex flex-col gap-1">
-                <span class="text-[10px] text-green-500 uppercase tracking-widest font-bold">Tu Vuelta (Verde)</span>
-                <select id="lap1Select" onchange="loadComparison()" class="bg-gray-900 text-green-400 font-bold p-2 rounded-lg border border-green-900 outline-none text-sm w-36 shadow-inner focus:border-green-500 transition-colors">
-                    <option value="">-</option>
-                </select>
+    <!-- CABECERA SUPERIOR -->
+    <header class="flex justify-between items-center mb-6">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-900 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(37,99,235,0.3)] border border-blue-500/30">
+                <span class="text-2xl">🏎️</span>
             </div>
-
-            <div class="flex flex-col gap-1">
-                <span class="text-[10px] text-orange-500 uppercase tracking-widest font-bold">Referencia (Naranja)</span>
-                <select id="lap2Select" onchange="loadComparison()" class="bg-gray-900 text-orange-400 font-bold p-2 rounded-lg border border-orange-900 outline-none text-sm w-36 shadow-inner focus:border-orange-500 transition-colors">
-                    <option value="">-</option>
-                </select>
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-wider">APEX<span class="text-blue-500">FLOW</span></h1>
+                <p id="infoText" class="text-xs text-gray-400 uppercase tracking-widest font-semibold">Módulo de Análisis Avanzado</p>
             </div>
         </div>
     </header>
-    
-    <!-- GRID DE ANÁLISIS PRINCIPAL -->
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 shadow-2xl flex-grow flex flex-col relative min-h-0">
-        <div class="flex justify-between items-end mb-4">
-            <span class="text-gray-500 text-xs tracking-widest uppercase">Comparativa de Telemetría (Speed vs Distance)</span>
-        </div>
-        <div class="flex-grow relative w-full">
-            <canvas id="historyChart"></canvas>
-        </div>
-    </div>
 
-    <!-- LÓGICA DE JAVASCRIPT -->
+    <!-- ÁREA PRINCIPAL: CONTROLES + GRÁFICA -->
+    <main class="flex-grow flex flex-col lg:flex-row gap-6 min-h-0">
+        
+        <!-- PANEL DE CONTROL LATERAL -->
+        <aside class="w-full lg:w-72 flex flex-col gap-6">
+            
+            <!-- Tarjeta de Controles -->
+            <div class="bg-[#0a0a0f]/80 backdrop-blur-xl border border-gray-800/60 rounded-2xl p-5 shadow-2xl flex flex-col gap-5">
+                <h2 class="text-sm text-gray-400 uppercase tracking-widest border-b border-gray-800 pb-2 mb-2 font-bold">Configuración de Análisis</h2>
+                
+                <!-- Selector de Sesión -->
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[11px] text-gray-500 uppercase tracking-widest font-bold">Archivo de Sesión</label>
+                    <select id="sessionSelect" onchange="onSessionChange()" class="w-full bg-[#13131a] text-gray-200 p-2.5 rounded-lg border border-gray-700 outline-none text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all cursor-pointer">
+                        <option value="">Cargando base de datos...</option>
+                    </select>
+                </div>
+
+                <!-- Selector Vuelta 1 -->
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[11px] text-green-500 uppercase tracking-widest font-bold flex justify-between">
+                        <span>Tu Vuelta</span>
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    </label>
+                    <select id="lap1Select" onchange="loadComparison()" class="w-full bg-[#13131a] text-green-400 font-bold p-2.5 rounded-lg border border-green-900/50 outline-none text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-all cursor-pointer">
+                        <option value="">-</option>
+                    </select>
+                </div>
+
+                <!-- Selector Vuelta 2 -->
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[11px] text-orange-500 uppercase tracking-widest font-bold flex justify-between">
+                        <span>Referencia (Pro/Ghost)</span>
+                        <span class="w-2 h-2 rounded-full bg-orange-500"></span>
+                    </label>
+                    <select id="lap2Select" onchange="loadComparison()" class="w-full bg-[#13131a] text-orange-400 font-bold p-2.5 rounded-lg border border-orange-900/50 outline-none text-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 transition-all cursor-pointer">
+                        <option value="">-</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Tarjeta de Resumen (Espacio para futuro Ingeniero de Pista) -->
+            <div class="bg-[#0a0a0f]/80 backdrop-blur-xl border border-gray-800/60 rounded-2xl p-5 shadow-2xl flex-grow flex flex-col justify-center items-center text-center opacity-50 hover:opacity-100 transition-opacity">
+                <span class="text-4xl mb-2">🤖</span>
+                <h3 class="text-sm font-bold text-gray-300 uppercase tracking-wider">Coach Inteligente</h3>
+                <p class="text-xs text-gray-500 mt-2">Los consejos heurísticos basados en telemetría aparecerán aquí próximamente.</p>
+            </div>
+        </aside>
+
+        <!-- ÁREA DE LA GRÁFICA -->
+        <section class="flex-grow bg-[#0a0a0f]/80 backdrop-blur-xl border border-gray-800/60 rounded-2xl p-6 shadow-2xl flex flex-col relative min-w-0">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-sm text-gray-400 uppercase tracking-widest font-bold">Velocidad (Y) vs Distancia Recorrida (X)</h2>
+                <div class="px-3 py-1 bg-[#13131a] border border-gray-800 rounded text-xs text-gray-500 font-bold">
+                    MODO ALTA PRECISIÓN (LINEAR)
+                </div>
+            </div>
+            
+            <!-- Contenedor del Canvas -->
+            <div class="flex-grow relative w-full">
+                <canvas id="historyChart"></canvas>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- SCRIPTS -->
     <script>
         let historyChart;
         let currentSessionId = "";
 
+        // 1. Cargar Sesiones al Iniciar
         window.onload = async function() {
-            const res = await fetch('/api/sessions');
-            const data = await res.json();
-            const select = document.getElementById('sessionSelect');
-            select.innerHTML = '<option value="">-- Elige una Sesión --</option>';
-            
-            data.sessions.forEach(session => {
-                const opt = document.createElement('option');
-                opt.value = session;
-                const date = new Date(parseInt(session.split('_')[1]) * 1000);
-                opt.text = `${date.toLocaleDateString()} - ${date.toLocaleTimeString()}`;
-                select.appendChild(opt);
-            });
+            try {
+                const res = await fetch('/api/sessions');
+                const data = await res.json();
+                const select = document.getElementById('sessionSelect');
+                select.innerHTML = '<option value="">-- Elige una Sesión --</option>';
+                
+                if (data.sessions.length === 0) {
+                    select.innerHTML = '<option value="">No hay datos en la BD</option>';
+                    return;
+                }
+
+                data.sessions.forEach(session => {
+                    const opt = document.createElement('option');
+                    opt.value = session;
+                    const date = new Date(parseInt(session.split('_')[1]) * 1000);
+                    opt.text = `${date.toLocaleDateString()} - ${date.toLocaleTimeString()}`;
+                    select.appendChild(opt);
+                });
+            } catch(e) {
+                console.error("Error conectando con Backend", e);
+            }
         };
 
+        // 2. Al cambiar de sesión, cargar vueltas
         async function onSessionChange() {
             currentSessionId = document.getElementById('sessionSelect').value;
             if (!currentSessionId) return;
@@ -98,21 +159,27 @@
             if (data.error) return;
 
             data.laps.forEach(item => {
+                // Rellenar Tu Vuelta
                 const opt1 = document.createElement('option');
                 opt1.value = item.lap;
-                opt1.text = `Vuelta ${item.lap} (${item.duration}s)`;
-                if (item.lap === data.best_lap) opt1.selected = true;
+                opt1.text = `Vuelta ${item.lap} - ${item.duration}s`;
+                if (item.lap === data.best_lap) {
+                    opt1.text = `⭐ Mejor Vuelta (${item.lap}) - ${item.duration}s`;
+                    opt1.selected = true;
+                }
                 lap1Select.appendChild(opt1);
 
+                // Rellenar Vuelta Pro
                 const opt2 = document.createElement('option');
                 opt2.value = item.lap;
-                opt2.text = `Vuelta ${item.lap} (${item.duration}s)`;
+                opt2.text = `Vuelta ${item.lap} - ${item.duration}s`;
                 lap2Select.appendChild(opt2);
             });
 
             loadComparison();
         }
 
+        // 3. Cargar la comparativa
         async function loadComparison() {
             const lap1 = document.getElementById('lap1Select').value;
             const lap2 = document.getElementById('lap2Select').value;
@@ -125,59 +192,94 @@
             drawComparisonChart(data.lap1, data.lap2);
         }
 
+        // 4. Dibujar Gráfica Premium con Chart.js
         function drawComparisonChart(l1, l2) {
             const ctx = document.getElementById('historyChart').getContext('2d');
             if (historyChart) historyChart.destroy();
 
-            // Configuración de colores oscuros para la gráfica
-            Chart.defaults.color = '#9ca3af';
+            // Configuración Global Chart.js
+            Chart.defaults.color = '#6b7280';
             Chart.defaults.font.family = "'Rajdhani', sans-serif";
+
+            // Corrección de Sincronización: Mapeo Lineal (Distancia Exacta, Velocidad)
+            const dataL1 = l1.speed.map((spd, i) => ({ x: parseFloat(l1.distances[i]), y: spd }));
+            const dataL2 = l2.speed.map((spd, i) => ({ x: parseFloat(l2.distances[i]), y: spd }));
+
+            // Crear un Gradiente espectacular para la vuelta verde
+            const gradientGreen = ctx.createLinearGradient(0, 0, 0, 400);
+            gradientGreen.addColorStop(0, 'rgba(34, 197, 94, 0.4)'); // Verde visible arriba
+            gradientGreen.addColorStop(1, 'rgba(34, 197, 94, 0.0)'); // Transparente abajo
 
             historyChart = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: l1.distances,
                     datasets: [
                         { 
                             label: `Vuelta ${l1.number} (Tú)`, 
-                            borderColor: '#22c55e', 
-                            backgroundColor: 'rgba(34, 197, 94, 0.1)', 
+                            borderColor: '#22c55e', // Verde brillante
+                            backgroundColor: gradientGreen, 
                             fill: true,
-                            data: l1.speed, 
-                            tension: 0.1, 
+                            data: dataL1, 
+                            tension: 0.15, // Suavizado de curva ligero
                             pointRadius: 0, 
-                            borderWidth: 2 
+                            pointHoverRadius: 6,
+                            borderWidth: 2.5 
                         },
                         { 
                             label: `Vuelta ${l2.number} (Ref)`, 
-                            borderColor: '#f97316', 
-                            data: l2.speed, 
-                            tension: 0.1, 
-                            pointRadius: 0, 
+                            borderColor: '#f97316', // Naranja
+                            backgroundColor: 'transparent',
+                            data: dataL2, 
+                            tension: 0.15, 
+                            pointRadius: 0,
+                            pointHoverRadius: 6,
                             borderWidth: 2, 
-                            borderDash: [5, 5] 
+                            borderDash: [6, 4] // Línea punteada elegante
                         }
                     ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
+                    interaction: { mode: 'nearest', intersect: false, axis: 'x' }, 
                     plugins: {
-                        legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8 } },
-                        tooltip: { backgroundColor: 'rgba(17, 24, 39, 0.9)', titleFont: { size: 14 }, bodyFont: { size: 14 }, borderColor: '#374151', borderWidth: 1 }
+                        legend: { 
+                            position: 'top', 
+                            align: 'end',
+                            labels: { usePointStyle: true, boxWidth: 8, color: '#9ca3af', font: { weight: 'bold' } } 
+                        },
+                        tooltip: { 
+                            backgroundColor: 'rgba(9, 9, 11, 0.95)', 
+                            titleFont: { size: 14, family: "'Rajdhani', sans-serif" }, 
+                            bodyFont: { size: 15, weight: 'bold', family: "'Rajdhani', sans-serif" }, 
+                            padding: 12,
+                            borderColor: '#27272a', 
+                            borderWidth: 1,
+                            displayColors: true,
+                            boxPadding: 4,
+                            callbacks: {
+                                title: (items) => `Distancia: ${items[0].parsed.x} metros`,
+                                label: (item) => `${item.dataset.label}: ${item.parsed.y} km/h`
+                            }
+                        }
                     },
                     scales: {
                         y: { 
                             min: 0, 
                             max: 350, 
-                            title: { display: true, text: 'VELOCIDAD (KM/H)', color: '#6b7280', font: { size: 10, weight: 'bold' } },
-                            grid: { color: '#1f2937' } // Cuadrícula oscura
+                            title: { display: false },
+                            grid: { color: 'rgba(31, 41, 55, 0.4)', drawBorder: false }, // Cuadrícula muy sutil
+                            ticks: { font: { size: 12, weight: 'bold' }, stepSize: 50 }
                         },
                         x: { 
-                            ticks: { maxTicksLimit: 20 }, 
-                            title: { display: true, text: 'DISTANCIA EN PISTA (METROS)', color: '#6b7280', font: { size: 10, weight: 'bold' } },
-                            grid: { color: '#1f2937' } // Cuadrícula oscura
+                            type: 'linear', 
+                            title: { display: false },
+                            grid: { color: 'rgba(31, 41, 55, 0.4)', drawBorder: false },
+                            ticks: {
+                                callback: function(value) { return value + 'm'; },
+                                maxTicksLimit: 12,
+                                font: { size: 11, weight: 'bold' }
+                            }
                         }
                     }
                 }
